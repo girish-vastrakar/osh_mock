@@ -263,6 +263,7 @@
   function weightFor(q, p) {
     let w = 1;
     if (AREAS[q.a].startsWith('Mines')) w *= 1.6;
+    if (q.t === 's') w *= 0.5; // 'which Section/Rule deals with...' questions: keep them to a share of each paper
     const txt = (q.q + ' ' + q.o.join(' ')).toLowerCase();
     const other = p.mineral === 'Coal' ? /metal/ : /coal/;
     const mine = p.mineral === 'Coal' ? /coal/ : /metal/;
