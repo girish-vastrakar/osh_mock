@@ -156,6 +156,11 @@
           ${['auto', 'light', 'dark'].map(t => `<button class="btn" data-theme="${t}" aria-pressed="${(db.theme || 'auto') === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
         </div>
       </div>
+      ${window.oshStats && oshStats.available() ? `<div class="card">
+        <h3>Usage stats</h3>
+        <p class="muted small">To improve the app, it sends anonymous stats: your device type, certificate choice, and your scores by topic. It never sends your name. You can turn this off.</p>
+        <div class="row">${[['on', 'Share stats'], ['off', 'Off']].map(([k, t]) => `<button class="btn" data-stats="${k}" aria-pressed="${(k === 'off') === oshStats.optedOut()}">${t}</button>`).join('')}</div>
+      </div>` : ''}
       <div class="card">
         <h3>Reset</h3>
         <p class="muted small">Deletes this learner's scores and history from this device. This cannot be undone.</p>
@@ -166,6 +171,7 @@
     $('#add').onclick = () => { db.active = null; store.save(); go('setup'); };
     app.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => { db.active = b.dataset.pid; store.save(); go('home'); });
     app.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { db.theme = b.dataset.theme; store.save(); applyTheme(); viewProfile(); });
+    app.querySelectorAll('[data-stats]').forEach(b => b.onclick = () => { oshStats.setOptOut(b.dataset.stats === 'off'); viewProfile(); });
     $('#reset').onclick = () => modal(`<h2>Delete progress?</h2><p>All of ${esc(p.name)}'s attempts and topic scores on this device will be removed.</p>
       <div class="row"><button class="btn" id="no">Cancel</button><button class="btn dark" id="yes">Delete</button></div>`, close => {
       $('#no').onclick = close;
@@ -515,7 +521,7 @@
       saveElapsed(); clearInterval(timerHandle);
       const res = grade(p, c); p.current = null; p.history.unshift(res);
       if (p.history.length > 200) p.history.length = 200;
-      store.save(); go('result', res.id, { replace: true });
+      store.save(); statTest(p, res); go('result', res.id, { replace: true });
     }
 
     if (isMock) {
@@ -541,6 +547,20 @@
       };
     }
     render();
+  }
+
+  // ---------- Anonymous usage stats (analytics.js; nothing is sent unless the owner sets an endpoint) ----------
+  function learnerInfo(p) { return { learner_id: p.id, cert_class: p.cls, mineral: p.mineral, attempts_so_far: p.history.length, days_since_signup: Math.floor((Date.now() - (p.created || Date.now())) / 864e5) }; }
+  function statTest(p, r) {
+    if (!window.oshStats) return;
+    const label = r.mode === 'mock' ? (r.paper != null ? `Mock ${r.paper + 1}` : 'Mixed mock') : r.mode === 'drill' ? 'Topic drill' : r.mode;
+    oshStats.track('test_done', Object.assign(learnerInfo(p), {
+      mode: r.mode, paper: label, drill_area: r.area != null && AREAS[r.area] ? AREAS[r.area] : '',
+      questions: r.total, right: r.right, wrong: r.wrong, skipped: r.skipped, net_score: r.net,
+      accuracy_pct: r.right + r.wrong ? Math.round(100 * r.right / (r.right + r.wrong)) : '', passed: r.passed == null ? '' : r.passed ? 'yes' : 'no',
+      minutes: Math.round(r.time / 6) / 10,
+      topics: Object.entries(r.topic).map(([a, t]) => ({ area: AREAS[a], questions: t.n, right: t.right }))
+    }));
   }
 
   // ---------- Grading ----------
@@ -668,7 +688,9 @@
   fetch('questions.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(data => {
     BANK = data; AREAS = data.areas; EXAM = data.exam; PAPERS = data.papers || [];
     data.questions.forEach(q => (BYID[q.id] = q));
+    window.OSH_VERSION = data.version;
     go(me() ? 'home' : 'setup');
+    if (window.oshStats && me()) oshStats.track('app_open', learnerInfo(me()));
   }).catch(() => {
     app.innerHTML = '<div class="card center"><h2>Could not load the questions</h2><p class="muted">Check your connection and reload the page.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>';
   });

@@ -1,7 +1,7 @@
 // Offline cache. Bump CACHE when any file changes so phones pick up the new version.
-const CACHE = 'dgms-mock-v12';
+const CACHE = 'dgms-mock-v13';
 const FILES = [
-  './', 'index.html', 'styles.css', 'app.js', 'questions.json', 'manifest.webmanifest',
+  './', 'index.html', 'styles.css', 'app.js', 'analytics.js', 'questions.json', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
   'icons/apple-touch-icon.png', 'icons/favicon-32.png'
 ];
