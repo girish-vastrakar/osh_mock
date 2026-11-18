@@ -52,13 +52,44 @@
     $('#topRight').innerHTML = right;
   }
   $('#backBtn').onclick = () => go('home');
+  window.addEventListener('popstate', e => {
+    if (skipPop) { skipPop = false; return; }
+    const m = $('#modal');
+    if (!m.hidden) { m.hidden = true; $('#modalBody').innerHTML = ''; history.pushState(navState, ''); return; }
+    if (leaveTest) {
+      // A test is running: stay on it and ask first, so Back never loses an attempt by accident.
+      history.pushState(navState, '');
+      const isMock = me().current && me().current.mode === 'mock';
+      modal(`<h2>Leave this ${isMock ? 'test' : 'drill'}?</h2><p>Your answers are saved${isMock ? ' and the timer is paused' : ''}. You can resume it from the home screen.</p>
+        <div class="row"><button class="btn" id="stay">Stay</button><button class="btn primary" id="leave">Leave</button></div>`, close => {
+        $('#stay').onclick = close; $('#leave').onclick = () => { close(); leaveTest(); go('home'); };
+      });
+      return;
+    }
+    const st = e.state || { v: 'home', d: 0 };
+    go(st.v, st.arg === null ? undefined : st.arg, { pop: st });
+  });
 
   // ---------- Router ----------
-  function go(view, arg) {
+  // Every screen is a browser history entry, so the phone's Back button goes to the previous screen.
+  // Home is the bottom of the stack: Back on Home leaves the app as usual.
+  let navState = null, skipPop = false, leaveTest = null;
+  function go(view, arg, opt = {}) {
+    if (!me() && view !== 'setup') view = 'setup';
+    if (opt.pop) navState = opt.pop;
+    else if (view === 'home' || !me()) {
+      const d = (history.state && history.state.d) || 0;
+      navState = { v: view, d: 0 };
+      if (d > 0) { skipPop = true; history.go(-d); } else history.replaceState(navState, '');
+    } else {
+      const d = (history.state && history.state.d) || 0;
+      navState = { v: view, arg: arg === undefined ? null : arg, d: opt.replace ? d : d + 1 };
+      opt.replace ? history.replaceState(navState, '') : history.pushState(navState, '');
+    }
+    leaveTest = null;
     clearInterval(timerHandle); timerHandle = null;
     document.body.classList.remove('testing');
     const old = document.querySelector('.bottombar'); old && old.remove();
-    if (!me() && view !== 'setup') view = 'setup';
     ({ setup: viewSetup, home: viewHome, topics: viewTopics, test: viewTest, result: viewResult, review: viewReview, history: viewHistory, profile: viewProfile, mockIntro: viewMockIntro, papers: viewPapers }[view] || viewHome)(arg);
     window.scrollTo(0, 0);
     app.focus({ preventScroll: true });
@@ -459,6 +490,7 @@
     }
     function move(d) { c.idx = Math.min(c.qs.length - 1, Math.max(0, c.idx + d)); persist(); render(); window.scrollTo(0, 0); }
     function persist() { saveElapsed(); store.save(); }
+    leaveTest = persist;
 
     function openPalette() {
       modal(`<h2>All questions</h2>
@@ -483,7 +515,7 @@
       saveElapsed(); clearInterval(timerHandle);
       const res = grade(p, c); p.current = null; p.history.unshift(res);
       if (p.history.length > 200) p.history.length = 200;
-      store.save(); go('result', res.id);
+      store.save(); go('result', res.id, { replace: true });
     }
 
     if (isMock) {
