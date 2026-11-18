@@ -414,9 +414,10 @@
     function render() {
       const q = BYID[c.qs[c.idx]], ord = c.order[c.idx], ans = c.answers[c.idx];
       const revealed = !isMock && ans !== null;
+      const mk = isMock && c.marked[c.idx];
       app.innerHTML = `
-        <div class="card">
-          <div class="qhead"><span>Question ${c.idx + 1} of ${c.qs.length}</span>
+        <div class="card${mk ? ' marked' : ''}">
+          <div class="qhead"><span>Question ${c.idx + 1} of ${c.qs.length}${mk ? ' <span class="tag mk">&#9873; Marked for review</span>' : ''}</span>
             <span>${isMock ? esc(AREAS[q.a]) : `<span class="tag">${esc(q.s)} · ${esc(q.r)}</span>`}</span></div>
           <div class="qtext">${esc(q.q)}</div>
           <div role="radiogroup" aria-label="Options">
@@ -436,7 +437,7 @@
       if (isMock) {
         bar.innerHTML = `<div class="inner">
           <button class="btn" id="prev" ${c.idx === 0 ? 'disabled' : ''}>&#8592; Prev</button>
-          <button class="btn" id="mark">${c.marked[c.idx] ? 'Unmark' : 'Mark'}</button>
+          <button class="btn${c.marked[c.idx] ? ' marked' : ''}" id="mark" aria-pressed="${c.marked[c.idx]}">${c.marked[c.idx] ? 'Unmark' : 'Mark'}</button>
           ${ans !== null ? '<button class="btn" id="clear">Clear</button>' : ''}
           ${last ? '<button class="btn primary" id="submit">Submit</button>' : '<button class="btn dark" id="next">Next &#8594;</button>'}</div>`;
         $('#prev').onclick = () => move(-1);
