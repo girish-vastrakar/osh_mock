@@ -100,7 +100,7 @@
       const name = $('#nm').value.trim();
       if (!name) { toast('Please enter your name.'); $('#nm').focus(); return; }
       if (editing) Object.assign(me(), { name, ...sel });
-      else { const id = uid(); db.profiles[id] = { id, name, ...sel, created: Date.now(), history: [], stats: {}, current: null }; db.active = id; }
+      else { const id = uid(); db.profiles[id] = { id, name, ...sel, created: Date.now(), history: [], stats: {}, dstats: {}, current: null }; db.active = id; }
       store.save(); go('home');
     };
   }
@@ -148,10 +148,24 @@
   }
 
   // ---------- Stats ----------
+  // p.stats counts every answer (used to pick fresh questions and for 'my mistakes').
+  // p.dstats counts drill answers only: topic drill progress is kept separate from mock papers.
+  function drillStats(p) {
+    if (!p.dstats) {
+      p.dstats = {};
+      [...p.history].reverse().filter(h => h.mode === 'drill').forEach(h => h.items.forEach(it => {
+        if (it.a === null || !BYID[it.id]) return;
+        const r = it.a === BYID[it.id].k ? 1 : 0, d = p.dstats[it.id] || (p.dstats[it.id] = { seen: 0, right: 0, last: null });
+        d.seen++; d.right += r; d.last = r;
+      }));
+      store.save();
+    }
+    return p.dstats;
+  }
   function areaStats(p) {
     const s = AREAS.map(() => ({ seen: 0, right: 0, uniq: 0, total: 0 }));
     BANK.questions.forEach(q => s[q.a].total++);
-    for (const [id, v] of Object.entries(p.stats)) {
+    for (const [id, v] of Object.entries(drillStats(p))) {
       const q = BYID[id]; if (!q) continue;
       s[q.a].seen += v.seen; s[q.a].right += v.right; s[q.a].uniq++;
     }
@@ -199,11 +213,13 @@
         <p class="muted small">${cur.answers.filter(a => a !== null).length} of ${cur.qs.length} answered${cur.mode === 'mock' ? ` · ${fmtTime(remaining(cur))} left` : ''}</p>
         <div class="row"><button class="btn primary" id="resume">Resume</button><button class="btn" id="discard">Discard</button></div>
       </div>` : ''}
+      <h3 class="sec">Mock papers</h3>
       <button class="action" id="mock"><span class="ic">&#9201;</span><span><span class="t">Mock papers</span><span class="d">${PAPERS.length} full papers · ${PAPERS.filter((_, i) => paperStats(p, i).runs).length} of ${PAPERS.length} done · ${EXAM.questions} questions, ${EXAM.minutes / 60} hours each</span></span></button>
+      <h3 class="sec">Topic practice</h3>
       <button class="action" id="drill"><span class="ic">&#9776;</span><span><span class="t">Topic drill</span><span class="d">${DRILL_SIZE} questions on one topic, answer shown after each question</span></span></button>
-      <button class="action" id="mistakes"><span class="ic">&#8635;</span><span><span class="t">Practise my mistakes</span><span class="d">${countMistakes(p)} questions you last answered wrong</span></span></button>
+      <button class="action" id="mistakes"><span class="ic">&#8635;</span><span><span class="t">Practise my mistakes</span><span class="d">${countMistakes(p)} questions you last answered wrong, in drills or mocks</span></span></button>
       ${weak ? `<button class="action" id="weak"><span class="ic">&#9888;</span><span><span class="t">Drill my weakest topic</span><span class="d">${esc(AREAS[weak.i])} · ${Math.round(weak.acc * 100)}% correct so far</span></span></button>` : ''}
-      <button class="action" id="hist"><span class="ic">&#128200;</span><span><span class="t">History and progress</span><span class="d">Past scores and accuracy by topic</span></span></button>
+      <button class="action" id="hist"><span class="ic">&#128200;</span><span><span class="t">History and progress</span><span class="d">Mock paper scores and topic drill progress, kept separately</span></span></button>
       <p class="muted small center">Every answer cites the Code section or Rule number so you can check it in the source.</p>`;
     $('#mock').onclick = () => go('papers');
     $('#drill').onclick = () => go('topics');
@@ -315,7 +331,7 @@
   function viewTopics() {
     const p = me(); const st = areaStats(p);
     setTop({ back: true, title: 'Topic drill' });
-    app.innerHTML = `<h2>Choose a topic</h2><p class="muted">${DRILL_SIZE} questions, with the answer and rule shown after each one. The bar shows how much of the topic you have practised so far, counting drills and mocks.</p>
+    app.innerHTML = `<h2>Choose a topic</h2><p class="muted">${DRILL_SIZE} questions, with the answer and rule shown after each one. The bar shows how much of the topic you have practised in drills. Mock papers are tracked separately.</p>
       ${AREAS.map((a, i) => {
         return `<button class="topic" data-a="${i}"><span style="flex:1;min-width:0"><b>${esc(a)}</b>${coverageLine(st[i])}</span></button>`;
       }).join('')}`;
@@ -507,6 +523,7 @@
       if (r !== null) {
         const s = p.stats[id] || (p.stats[id] = { seen: 0, right: 0, last: null });
         s.seen++; s.right += r; s.last = r;
+        if (c.mode === 'drill') { const d = drillStats(p); const x = d[id] || (d[id] = { seen: 0, right: 0, last: null }); x.seen++; x.right += r; x.last = r; }
       }
       return { id, a, o: c.order[i] };
     });
@@ -577,33 +594,39 @@
   }
 
   // ---------- History ----------
-  function viewHistory() {
+  function viewHistory(tab) {
     const p = me(); const st = areaStats(p);
+    tab = tab === 'drill' ? 'drill' : 'mock';
     setTop({ back: true, title: 'History' });
-    const mocks = p.history.filter(h => h.mode === 'mock').slice(0, 20).reverse();
-    const chart = mocks.length > 1 ? (() => {
-      const W = 600, H = 160, pad = 24, max = EXAM.questions;
-      const x = i => pad + i * (W - 2 * pad) / (mocks.length - 1), y = v => H - pad - Math.max(0, v) / max * (H - 2 * pad);
-      const pts = mocks.map((m, i) => `${x(i)},${y(m.net)}`).join(' ');
-      return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Mock scores over time">
-        <line x1="${pad}" x2="${W - pad}" y1="${y(EXAM.pass)}" y2="${y(EXAM.pass)}" stroke="var(--accent)" stroke-dasharray="6 5"/>
-        <text x="${W - pad}" y="${y(EXAM.pass) - 6}" text-anchor="end" font-size="12" fill="var(--muted)">pass ${EXAM.pass}</text>
-        <polyline points="${pts}" fill="none" stroke="var(--focus)" stroke-width="3" stroke-linejoin="round"/>
-        ${mocks.map((m, i) => `<circle cx="${x(i)}" cy="${y(m.net)}" r="5" fill="${m.passed ? 'var(--ok)' : 'var(--bad)'}"><title>${r2(m.net)}</title></circle>`).join('')}
-      </svg>`;
-    })() : '';
-    app.innerHTML = `
-      ${chart ? `<div class="card"><h3>Mock scores</h3>${chart}</div>` : ''}
-      <div class="card"><h3>Progress by topic</h3>
-        <p class="muted small">The bar shows how much of each topic you have practised, in drills and mocks. Accuracy appears once you have ${MIN_ACC} answers in a topic.</p>
+    const tabs = `<div class="filters">${[['mock', 'Mock papers'], ['drill', 'Topic drills']].map(([k, t]) => `<button class="btn" data-t="${k}" aria-pressed="${tab === k}">${t}</button>`).join('')}</div>`;
+    const list = p.history.filter(h => (h.mode === 'mock') === (tab === 'mock'));
+    const rows = list.length ? `<table class="hist"><thead><tr><th>Date</th><th>${tab === 'mock' ? 'Paper' : 'Topic'}</th><th class="num">Score</th></tr></thead><tbody>
+      ${list.map(h => `<tr data-id="${h.id}" style="cursor:pointer"><td>${fmtDate(h.date)}</td><td>${h.mode === 'mock' ? esc(mockName(h)) : (h.area >= 0 ? esc(AREAS[h.area]) : 'My mistakes')}</td>
+        <td class="num">${r2(h.net)}/${h.total} ${h.mode === 'mock' ? (h.passed ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Fail</span>') : ''}</td></tr>`).join('')}
+      </tbody></table>` : `<p class="muted">No ${tab === 'mock' ? 'mock papers' : 'drills'} taken yet.</p>`;
+    let body;
+    if (tab === 'mock') {
+      const mocks = list.slice(0, 20).reverse();
+      const chart = mocks.length > 1 ? (() => {
+        const W = 600, H = 160, pad = 24, max = EXAM.questions;
+        const x = i => pad + i * (W - 2 * pad) / (mocks.length - 1), y = v => H - pad - Math.max(0, v) / max * (H - 2 * pad);
+        const pts = mocks.map((m, i) => `${x(i)},${y(m.net)}`).join(' ');
+        return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Mock scores over time">
+          <line x1="${pad}" x2="${W - pad}" y1="${y(EXAM.pass)}" y2="${y(EXAM.pass)}" stroke="var(--accent)" stroke-dasharray="6 5"/>
+          <text x="${W - pad}" y="${y(EXAM.pass) - 6}" text-anchor="end" font-size="12" fill="var(--muted)">pass ${EXAM.pass}</text>
+          <polyline points="${pts}" fill="none" stroke="var(--focus)" stroke-width="3" stroke-linejoin="round"/>
+          ${mocks.map((m, i) => `<circle cx="${x(i)}" cy="${y(m.net)}" r="5" fill="${m.passed ? 'var(--ok)' : 'var(--bad)'}"><title>${esc(mockName(m))}: ${r2(m.net)}</title></circle>`).join('')}
+        </svg>`;
+      })() : '';
+      body = `${chart ? `<div class="card"><h3>Mock scores</h3>${chart}</div>` : ''}<div class="card"><h3>Mock attempts</h3>${rows}</div>`;
+    } else {
+      body = `<div class="card"><h3>Progress by topic</h3>
+        <p class="muted small">Drill answers only. The bar shows how much of each topic you have practised; accuracy appears after ${MIN_ACC} answers.</p>
         ${AREAS.map((a, i) => `<div style="margin-bottom:.7rem"><b style="font-size:.95rem">${esc(a)}</b>${coverageLine(st[i])}</div>`).join('')}
-      </div>
-      <div class="card"><h3>All attempts</h3>
-        ${p.history.length ? `<table class="hist"><thead><tr><th>Date</th><th>Test</th><th class="num">Score</th></tr></thead><tbody>
-          ${p.history.map(h => `<tr data-id="${h.id}" style="cursor:pointer"><td>${fmtDate(h.date)}</td><td>${h.mode === 'mock' ? esc(mockName(h)) : (h.area >= 0 ? esc(AREAS[h.area]) : 'Mistakes')}</td>
-            <td class="num">${r2(h.net)}/${h.total} ${h.mode === 'mock' ? (h.passed ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Fail</span>') : ''}</td></tr>`).join('')}
-        </tbody></table>` : '<p class="muted">No attempts yet.</p>'}
-      </div>`;
+      </div><div class="card"><h3>Drill attempts</h3>${rows}</div>`;
+    }
+    app.innerHTML = tabs + body;
+    app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => viewHistory(b.dataset.t));
     app.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => go('result', tr.dataset.id));
   }
 
