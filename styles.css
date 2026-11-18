@@ -169,3 +169,5 @@ table.hist td.num, table.hist th.num { text-align: right; font-variant-numeric: 
   .qtext { font-size: 1.2rem; }
   main { padding-top: 24px; }
 }
+.bar.cov > i { background: var(--focus); }
+.acc { font-weight: 700; color: var(--ok); } .acc.mid { color: var(--warn); } .acc.low { color: var(--bad); }

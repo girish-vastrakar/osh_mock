@@ -149,16 +149,28 @@
 
   // ---------- Stats ----------
   function areaStats(p) {
-    const s = AREAS.map(() => ({ seen: 0, right: 0 }));
+    const s = AREAS.map(() => ({ seen: 0, right: 0, uniq: 0, total: 0 }));
+    BANK.questions.forEach(q => s[q.a].total++);
     for (const [id, v] of Object.entries(p.stats)) {
       const q = BYID[id]; if (!q) continue;
-      s[q.a].seen += v.seen; s[q.a].right += v.right;
+      s[q.a].seen += v.seen; s[q.a].right += v.right; s[q.a].uniq++;
     }
     return s;
   }
+  // Accuracy is only shown once a topic has enough answers to mean something.
+  const MIN_ACC = 5;
+  // One topic row: the bar shows how much of the topic has been practised (coverage); accuracy is text beside it.
+  function coverageLine(st) {
+    const cov = st.total ? st.uniq / st.total : 0;
+    const acc = st.seen >= MIN_ACC ? st.right / st.seen : null;
+    const accTxt = !st.seen ? 'Not practised yet'
+      : acc === null ? `${st.uniq} of ${st.total} practised · score after ${MIN_ACC} answers`
+      : `${st.uniq} of ${st.total} practised · <span class="acc ${accClass(acc)}">${Math.round(acc * 100)}% correct</span>`;
+    return `<div class="bar cov"><i style="width:${st.uniq ? Math.max(2, Math.round(cov * 100)) : 0}%"></i></div><div class="meta">${accTxt}</div>`;
+  }
   function weakAreas(p, n = 3) {
     return areaStats(p).map((s, i) => ({ i, acc: s.seen ? s.right / s.seen : null, seen: s.seen }))
-      .filter(x => x.seen >= 3).sort((a, b) => a.acc - b.acc).slice(0, n);
+      .filter(x => x.seen >= MIN_ACC).sort((a, b) => a.acc - b.acc).slice(0, n);
   }
   const accClass = a => a >= .75 ? '' : a >= .5 ? 'mid' : 'low';
 
@@ -283,14 +295,10 @@
   // ---------- Topic picker ----------
   function viewTopics() {
     const p = me(); const st = areaStats(p);
-    const counts = AREAS.map(() => 0); BANK.questions.forEach(q => counts[q.a]++);
     setTop({ back: true, title: 'Topic drill' });
-    app.innerHTML = `<h2>Choose a topic</h2><p class="muted">${DRILL_SIZE} questions, with the answer and rule shown after each one.</p>
+    app.innerHTML = `<h2>Choose a topic</h2><p class="muted">${DRILL_SIZE} questions, with the answer and rule shown after each one. The bar shows how much of the topic you have practised so far, counting drills and mocks.</p>
       ${AREAS.map((a, i) => {
-        const acc = st[i].seen ? st[i].right / st[i].seen : null;
-        return `<button class="topic" data-a="${i}"><span style="flex:1;min-width:0"><b>${esc(a)}</b>
-          ${acc === null ? '<div class="meta">Not tried yet</div>' : `<div class="bar ${accClass(acc)}"><i style="width:${Math.round(acc * 100)}%"></i></div>`}</span>
-          <span class="meta">${counts[i]} Qs${acc === null ? '' : ` · ${Math.round(acc * 100)}%`}</span></button>`;
+        return `<button class="topic" data-a="${i}"><span style="flex:1;min-width:0"><b>${esc(a)}</b>${coverageLine(st[i])}</span></button>`;
       }).join('')}`;
     app.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { const i = +b.dataset.a; me().current ? confirmReplace(() => startDrill(i)) : startDrill(i); });
   }
@@ -567,10 +575,9 @@
     })() : '';
     app.innerHTML = `
       ${chart ? `<div class="card"><h3>Mock scores</h3>${chart}</div>` : ''}
-      <div class="card"><h3>Accuracy by topic</h3>
-        ${AREAS.map((a, i) => { const acc = st[i].seen ? st[i].right / st[i].seen : null; return `
-          <div style="margin-bottom:.6rem"><div class="qhead" style="margin:0"><span style="color:var(--text)">${esc(a)}</span><span>${acc === null ? 'not tried' : Math.round(acc * 100) + '% of ' + st[i].seen}</span></div>
-          <div class="bar ${acc === null ? '' : accClass(acc)}"><i style="width:${acc === null ? 0 : Math.round(acc * 100)}%"></i></div></div>`; }).join('')}
+      <div class="card"><h3>Progress by topic</h3>
+        <p class="muted small">The bar shows how much of each topic you have practised, in drills and mocks. Accuracy appears once you have ${MIN_ACC} answers in a topic.</p>
+        ${AREAS.map((a, i) => `<div style="margin-bottom:.7rem"><b style="font-size:.95rem">${esc(a)}</b>${coverageLine(st[i])}</div>`).join('')}
       </div>
       <div class="card"><h3>All attempts</h3>
         ${p.history.length ? `<table class="hist"><thead><tr><th>Date</th><th>Test</th><th class="num">Score</th></tr></thead><tbody>
