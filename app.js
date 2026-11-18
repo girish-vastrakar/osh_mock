@@ -1,4 +1,4 @@
-/* DGMS Mock Test PWA. Plain JavaScript, no build step. All learner data stays in this browser (localStorage). */
+/* OSH Mock Test PWA. Plain JavaScript, no build step. All learner data stays in this browser (localStorage). */
 (() => {
   'use strict';
 
@@ -46,7 +46,7 @@
     const f = $('#modalBody').querySelector('button, input'); f && f.focus();
     return close;
   }
-  function setTop({ back = false, title = 'DGMS Mock Test', right = '' } = {}) {
+  function setTop({ back = false, title = 'OSH Mock Test', right = '' } = {}) {
     $('#backBtn').hidden = !back;
     $('#brand span').textContent = title;
     $('#topRight').innerHTML = right;

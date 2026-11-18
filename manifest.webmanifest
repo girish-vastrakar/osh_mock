@@ -1,6 +1,6 @@
 {
-  "name": "DGMS Manager's Exam Mock Test",
-  "short_name": "DGMS Mock",
+  "name": "OSH Mock Test",
+  "short_name": "OSH Mock Test",
   "description": "Topic drills and full 150-question timed mocks from the OSH&WC Code 2020 and Central Rules 2026.",
   "start_url": "./",
   "scope": "./",

@@ -1,4 +1,4 @@
-# DGMS Mock Test
+# OSH Mock Test
 
 A practice app for the DGMS Manager's Certificate of Competency exam (First or Second Class, Coal or Metal).
 It has 1,643 questions from the OSH&WC Code 2020 and the OSH&WC (Central) Rules 2026.
