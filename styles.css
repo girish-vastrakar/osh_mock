@@ -171,3 +171,4 @@ table.hist td.num, table.hist th.num { text-align: right; font-variant-numeric: 
 }
 .bar.cov > i { background: var(--focus); }
 .acc { font-weight: 700; color: var(--ok); } .acc.mid { color: var(--warn); } .acc.low { color: var(--bad); }
+table.hist td.num { white-space: nowrap; }

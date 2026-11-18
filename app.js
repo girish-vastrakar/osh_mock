@@ -220,7 +220,7 @@
   const mockName = h => h.paper != null ? `Mock ${h.paper + 1}` : 'Mixed mock';
   function paperStats(p, i) {
     const runs = p.history.filter(h => h.mode === 'mock' && h.paper === i);
-    return { runs: runs.length, best: runs.length ? Math.max(...runs.map(h => h.net)) : null, last: runs[0] || null };
+    return { list: runs, runs: runs.length, best: runs.length ? Math.max(...runs.map(h => h.net)) : null, last: runs[0] || null };
   }
   const countMistakes = p => Object.values(p.stats).filter(v => v.last === 0).length;
 
@@ -260,19 +260,32 @@
     const p = me(), cur = p.current;
     const name = mockName({ paper }), s = paper === null ? null : paperStats(p, paper);
     setTop({ back: true, title: name });
+    const done = s && s.runs;
     app.innerHTML = `
-      <div class="card">
-        <h1>${esc(name)}: before you start</h1>
-        ${s && s.runs ? `<p class="small">You have taken this paper ${s.runs} time${s.runs > 1 ? 's' : ''}. Best score: <b>${r2(s.best)}</b>. Options are shuffled on each attempt.</p>` : ''}
+      ${done ? `<div class="card">
+        <h1>${esc(name)}: your results</h1>
+        <div class="stat-grid">
+          <div class="stat"><b>${r2(s.last.net)}</b><span class="small">last score</span></div>
+          <div class="stat"><b>${r2(s.best)}</b><span class="small">best score</span></div>
+          <div class="stat"><b>${s.runs}</b><span class="small">attempt${s.runs > 1 ? 's' : ''}</span></div>
+        </div>
+        <p class="small" style="margin:.75rem 0">${s.best >= EXAM.pass ? '<span class="tag ok">Passed</span> Your best score clears the pass mark.' : `<span class="tag bad">Not yet passed</span> You need ${r2(EXAM.pass - s.best)} more marks than your best to reach ${EXAM.pass}.`}</p>
+        <table class="hist"><thead><tr><th>Attempt</th><th class="num">Right / wrong / skipped</th><th class="num">Score</th></tr></thead><tbody>
+          ${s.list.map((h, i) => `<tr data-id="${h.id}" style="cursor:pointer"><td>#${s.runs - i} · ${fmtDate(h.date)}</td><td class="num">${h.right} / ${h.wrong} / ${h.skipped}</td>
+            <td class="num">${r2(h.net)} ${h.passed ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Fail</span>'}</td></tr>`).join('')}
+        </tbody></table>
+        <p class="muted small" style="margin:.5rem 0 0">Tap an attempt to see its full result.</p>
+        <div class="row" style="margin-top:.75rem"><button class="btn dark" id="revLast">Review last answers</button><button class="btn primary" id="retest">Retest</button></div>
+      </div>` : ''}
+      <${done ? 'details class="card"' : 'div class="card"'}>
+        ${done ? `<summary style="cursor:pointer;font-weight:700">Paper pattern and rules</summary><div style="margin-top:.75rem">` : `<h1>${esc(name)}: before you start</h1>`}
         <p class="muted">This mock follows the pattern of the DGMS Manager's Certificate exam (${esc(certLabel(p))}).</p>
         <div class="stat-grid">
           <div class="stat"><b>${EXAM.questions}</b><span class="small">questions</span></div>
           <div class="stat"><b>${EXAM.minutes / 60} hours</b><span class="small">time limit</span></div>
           <div class="stat"><b>${EXAM.pass}</b><span class="small">pass mark</span></div>
         </div>
-      </div>
-      <div class="card">
-        <h3>Rules</h3>
+        <h3 style="margin-top:1rem">Rules</h3>
         <ul style="margin:0;padding-left:1.2rem">
           <li>Each question has one correct answer and carries ${EXAM.mark} mark.</li>
           <li><b>${EXAM.negative} marks are deducted for every wrong answer</b> (1 mark for every 4 wrong). Skipped questions score zero.</li>
@@ -281,15 +294,21 @@
           <li>Answers are shown only after you submit.</li>
           <li>Use <b>Mark</b> to flag a question for review, and the grid button at the top to jump to any question.</li>
           <li><b>Save and exit</b> (in the question grid) pauses the timer so you can resume later.</li>
+          ${done ? '<li>A retest uses the same questions in the same order, with the options shuffled.</li>' : ''}
         </ul>
-      </div>
+      ${done ? '</div></details>' : '</div>'}
       ${cur ? `<p class="small" style="color:var(--warn)">Starting this paper will discard your unfinished ${cur.mode === 'mock' ? esc(mockName(cur)) : 'drill'}.</p>` : ''}
-      <div class="row">
+      ${done ? '' : `<div class="row">
         <button class="btn" id="cancel">Not now</button>
         <button class="btn primary" id="begin">Start test</button>
-      </div>`;
-    $('#cancel').onclick = () => go('papers');
-    $('#begin').onclick = () => cur ? confirmReplace(() => startMock(paper)) : startMock(paper);
+      </div>`}`;
+    const begin = () => cur ? confirmReplace(() => startMock(paper)) : startMock(paper);
+    if (!done) { $('#cancel').onclick = () => go('papers'); $('#begin').onclick = begin; }
+    else {
+      $('#retest').onclick = begin;
+      $('#revLast').onclick = () => go('review', s.last.id);
+      app.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => go('result', tr.dataset.id));
+    }
   }
 
   // ---------- Topic picker ----------
