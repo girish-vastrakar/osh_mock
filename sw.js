@@ -1,5 +1,5 @@
 // Offline cache. Bump CACHE when any file changes so phones pick up the new version.
-const CACHE = 'dgms-mock-v6';
+const CACHE = 'dgms-mock-v7';
 const FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'questions.json', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
@@ -17,17 +17,15 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Network first for the question bank (so new questions arrive), cache first for everything else.
+// Network first for every file, so a normal reload always gets the newest version when online.
+// The cache is only used when the device is offline.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
-  if (url.pathname.endsWith('questions.json')) {
-    e.respondWith(
-      fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(r => r || fetch(e.request)));
+  e.respondWith(
+    fetch(e.request, { cache: 'no-cache' })
+      .then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })
+      .catch(() => caches.match(e.request, { ignoreSearch: true }))
+  );
 });

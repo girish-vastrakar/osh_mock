@@ -622,5 +622,11 @@
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // When a new version of the app takes over, reload once so the learner sees it straight away (not during a test).
+    let reloaded = !navigator.serviceWorker.controller; // first visit: nothing old to replace
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded || (me() && me().current && document.body.classList.contains('testing'))) return;
+      reloaded = true; store.save(); location.reload();
+    });
   }
 })();
