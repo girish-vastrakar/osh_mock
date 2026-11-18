@@ -1,8 +1,9 @@
 /* Anonymous usage stats for the app owner. Sends no name or personal details.
-   Off until ENDPOINT is set. Rows go to the owner's Apps Script relay, which writes data.csv in a private GitHub repo; the GitHub key is never in this app. */
+   Rows (and delete requests on reset or opt-out) are posted to a public ntfy.sh topic. The repo's
+   collect-stats GitHub Action pulls them every few minutes into data.csv on the 'data' branch. */
 (() => {
   'use strict';
-  const ENDPOINT = ''; // Google Apps Script web app URL ("…/exec"). Empty = nothing is sent.
+  const ENDPOINT = 'https://ntfy.sh/osh-mock-stats-1b65fc50dab5c24e'; // public message relay; a GitHub Action in the repo collects messages into data.csv (data branch)
   const QKEY = 'osh.stats.queue', XKEY = 'osh.stats.deletes', DKEY = 'osh.stats.device', OKEY = 'osh.stats.optout';
 
   const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -40,7 +41,8 @@
     if (!enabled()) return;
     const q = queue(); if (!q.length) return;
     sending = true;
-    const batch = q.slice(0, 50);
+    let batch = [], size = 0; // ntfy messages are limited to 4 KB, so send rows in small batches
+    for (const r of q) { const n = JSON.stringify(r).length + 2; if (batch.length && size + n > 3500) break; batch.push(r); size += n; }
     post({ rows: batch })
       .then(() => { set(QKEY, JSON.stringify(queue().slice(batch.length))); sending = false; if (queue().length) flush(); })
       .catch(() => { sending = false; });
