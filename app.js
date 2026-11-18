@@ -158,7 +158,7 @@
       </div>
       ${window.oshStats && oshStats.available() ? `<div class="card">
         <h3>Usage stats</h3>
-        <p class="muted small">To improve the app, it sends anonymous stats: your device type, certificate choice, and your scores by topic. It never sends your name. You can turn this off.</p>
+        <p class="muted small">To improve the app, it sends anonymous stats: your device type, certificate choice, and your scores by topic. It never sends your name. Deleting your progress also deletes your stats, and turning stats off deletes everything sent from this device.</p>
         <div class="row">${[['on', 'Share stats'], ['off', 'Off']].map(([k, t]) => `<button class="btn" data-stats="${k}" aria-pressed="${(k === 'off') === oshStats.optedOut()}">${t}</button>`).join('')}</div>
       </div>` : ''}
       <div class="card">
@@ -175,7 +175,7 @@
     $('#reset').onclick = () => modal(`<h2>Delete progress?</h2><p>All of ${esc(p.name)}'s attempts and topic scores on this device will be removed.</p>
       <div class="row"><button class="btn" id="no">Cancel</button><button class="btn dark" id="yes">Delete</button></div>`, close => {
       $('#no').onclick = close;
-      $('#yes').onclick = () => { delete db.profiles[p.id]; db.active = null; store.save(); close(); go('setup'); };
+      $('#yes').onclick = () => { window.oshStats && oshStats.forget(p.id); delete db.profiles[p.id]; db.active = null; store.save(); close(); go('setup'); };
     });
   }
   function applyTheme() {

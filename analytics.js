@@ -1,9 +1,9 @@
 /* Anonymous usage stats for the app owner. Sends no name or personal details.
-   Off until ENDPOINT is set to the owner's Google Apps Script web app URL. */
+   Off until ENDPOINT is set. Rows go to the owner's Apps Script relay, which writes data.csv in a private GitHub repo; the GitHub key is never in this app. */
 (() => {
   'use strict';
   const ENDPOINT = ''; // Google Apps Script web app URL ("…/exec"). Empty = nothing is sent.
-  const QKEY = 'osh.stats.queue', DKEY = 'osh.stats.device', OKEY = 'osh.stats.optout';
+  const QKEY = 'osh.stats.queue', XKEY = 'osh.stats.deletes', DKEY = 'osh.stats.device', OKEY = 'osh.stats.optout';
 
   const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const set = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } };
@@ -25,15 +25,33 @@
   const enabled = () => !!ENDPOINT && get(OKEY) !== '1';
   const queue = () => { try { return JSON.parse(get(QKEY)) || []; } catch (e) { return []; } };
 
+  const deletes = () => { try { return JSON.parse(get(XKEY)) || []; } catch (e) { return []; } };
+  const post = body => fetch(ENDPOINT, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), keepalive: true });
+
   let sending = false;
   function flush() {
-    if (!enabled() || sending || !navigator.onLine) return;
+    if (!ENDPOINT || sending || !navigator.onLine) return;
+    const x = deletes();
+    if (x.length) { // deletion requests go first and are sent even when stats are off
+      sending = true;
+      post({ delete: x[0] }).then(() => { set(XKEY, JSON.stringify(deletes().slice(1))); sending = false; flush(); }).catch(() => { sending = false; });
+      return;
+    }
+    if (!enabled()) return;
     const q = queue(); if (!q.length) return;
     sending = true;
     const batch = q.slice(0, 50);
-    fetch(ENDPOINT, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ rows: batch }), keepalive: true })
+    post({ rows: batch })
       .then(() => { set(QKEY, JSON.stringify(queue().slice(batch.length))); sending = false; if (queue().length) flush(); })
       .catch(() => { sending = false; });
+  }
+
+  // Remove this device's rows (or one learner's rows) from the owner's data file.
+  function forget(learnerId) {
+    if (!ENDPOINT) return;
+    const q = queue().filter(r => learnerId && r.learner_id !== learnerId); set(QKEY, JSON.stringify(q));
+    const x = deletes(); x.push(learnerId ? { device_id: deviceId(), learner_id: learnerId } : { device_id: deviceId() });
+    set(XKEY, JSON.stringify(x)); flush();
   }
 
   function track(event, data) {
@@ -44,10 +62,11 @@
   }
 
   window.oshStats = {
-    track, flush,
+    track, flush, forget,
     available: () => !!ENDPOINT,
     optedOut: () => get(OKEY) === '1',
-    setOptOut: v => { set(OKEY, v ? '1' : null); if (v) set(QKEY, null); }
+    setOptOut: v => { set(OKEY, v ? '1' : null); if (v) forget(null); }
   };
   window.addEventListener('online', flush);
+  flush();
 })();
