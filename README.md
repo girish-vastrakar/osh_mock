@@ -1,10 +1,10 @@
 # OSH Mock Test
 
 A practice app for the DGMS Manager's Certificate of Competency exam (First or Second Class, Coal or Metal).
-It has 1,643 questions from the OSH&WC Code 2020 and the OSH&WC (Central) Rules 2026.
+It has 2,306 questions from the OSH&WC Code 2020 and the OSH&WC (Central) Rules 2026.
 
 ## Features
-- **10 fixed mock papers** (Mock 1 to Mock 10, no question repeated across papers) plus a random mixed mock. Each follows the real exam pattern: 150 questions, 3 hours, 1 mark each, 0.25 marks off for each wrong answer, pass mark 75.
+- **15 fixed mock papers** (Mock 1 to Mock 15, no question repeated across papers) plus a random mixed mock. Each follows the real exam pattern: 150 questions, 3 hours, 1 mark each, 0.25 marks off for each wrong answer, pass mark 75.
   - Mark questions for review and jump to any question from the question grid.
   - "Save and exit" pauses the test so you can resume it later.
   - The test submits automatically when the time runs out.
