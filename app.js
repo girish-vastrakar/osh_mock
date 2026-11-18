@@ -59,7 +59,7 @@
     document.body.classList.remove('testing');
     const old = document.querySelector('.bottombar'); old && old.remove();
     if (!me() && view !== 'setup') view = 'setup';
-    ({ setup: viewSetup, home: viewHome, topics: viewTopics, test: viewTest, result: viewResult, review: viewReview, history: viewHistory, profile: viewProfile }[view] || viewHome)(arg);
+    ({ setup: viewSetup, home: viewHome, topics: viewTopics, test: viewTest, result: viewResult, review: viewReview, history: viewHistory, profile: viewProfile, mockIntro: viewMockIntro }[view] || viewHome)(arg);
     window.scrollTo(0, 0);
     app.focus({ preventScroll: true });
   }
@@ -193,7 +193,7 @@
       ${weak ? `<button class="action" id="weak"><span class="ic">&#9888;</span><span><span class="t">Drill my weakest topic</span><span class="d">${esc(AREAS[weak.i])} · ${Math.round(weak.acc * 100)}% correct so far</span></span></button>` : ''}
       <button class="action" id="hist"><span class="ic">&#128200;</span><span><span class="t">History and progress</span><span class="d">Past scores and accuracy by topic</span></span></button>
       <p class="muted small center">Every answer cites the Code section or Rule number so you can check it in the source.</p>`;
-    $('#mock').onclick = () => cur ? confirmReplace(startMock) : startMock();
+    $('#mock').onclick = () => go('mockIntro');
     $('#drill').onclick = () => go('topics');
     $('#mistakes').onclick = () => { const n = countMistakes(p); if (!n) return toast('No mistakes saved yet. Take a drill or mock first.'); cur ? confirmReplace(startMistakes) : startMistakes(); };
     $('#hist').onclick = () => go('history');
@@ -206,6 +206,42 @@
     });
   }
   const countMistakes = p => Object.values(p.stats).filter(v => v.last === 0).length;
+
+
+  // ---------- Mock instructions (nothing starts until the learner taps Start) ----------
+  function viewMockIntro() {
+    const p = me(), cur = p.current;
+    setTop({ back: true, title: 'Full mock test' });
+    app.innerHTML = `
+      <div class="card">
+        <h1>Before you start</h1>
+        <p class="muted">This mock follows the pattern of the DGMS Manager's Certificate exam (${esc(certLabel(p))}).</p>
+        <div class="stat-grid">
+          <div class="stat"><b>${EXAM.questions}</b><span class="small">questions</span></div>
+          <div class="stat"><b>${EXAM.minutes / 60} hours</b><span class="small">time limit</span></div>
+          <div class="stat"><b>${EXAM.pass}</b><span class="small">pass mark</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Rules</h3>
+        <ul style="margin:0;padding-left:1.2rem">
+          <li>Each question has one correct answer and carries ${EXAM.mark} mark.</li>
+          <li><b>${EXAM.negative} marks are deducted for every wrong answer</b> (1 mark for every 4 wrong). Skipped questions score zero.</li>
+          <li>You need <b>${EXAM.pass} net marks</b> out of ${EXAM.questions} to pass.</li>
+          <li>The timer starts when you tap <b>Start test</b>. The test is submitted automatically when time runs out.</li>
+          <li>Answers are shown only after you submit.</li>
+          <li>Use <b>Mark</b> to flag a question for review, and the grid button at the top to jump to any question.</li>
+          <li><b>Save and exit</b> (in the question grid) pauses the timer so you can resume later.</li>
+        </ul>
+      </div>
+      ${cur ? `<p class="small" style="color:var(--warn)">Starting a new mock will discard your unfinished ${cur.mode === 'mock' ? 'mock test' : 'drill'}.</p>` : ''}
+      <div class="row">
+        <button class="btn" id="cancel">Not now</button>
+        <button class="btn primary" id="begin">Start test</button>
+      </div>`;
+    $('#cancel').onclick = () => go('home');
+    $('#begin').onclick = () => cur ? confirmReplace(startMock) : startMock();
+  }
 
   // ---------- Topic picker ----------
   function viewTopics() {
