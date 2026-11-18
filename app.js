@@ -18,7 +18,7 @@
   const me = () => db.active && db.profiles[db.active];
 
   // ---------- Data ----------
-  let BANK = null, AREAS = [], EXAM = null, BYID = {};
+  let BANK = null, AREAS = [], EXAM = null, BYID = {}, PAPERS = [];
   const DRILL_SIZE = 15;
 
   // ---------- Helpers ----------
@@ -59,7 +59,7 @@
     document.body.classList.remove('testing');
     const old = document.querySelector('.bottombar'); old && old.remove();
     if (!me() && view !== 'setup') view = 'setup';
-    ({ setup: viewSetup, home: viewHome, topics: viewTopics, test: viewTest, result: viewResult, review: viewReview, history: viewHistory, profile: viewProfile, mockIntro: viewMockIntro }[view] || viewHome)(arg);
+    ({ setup: viewSetup, home: viewHome, topics: viewTopics, test: viewTest, result: viewResult, review: viewReview, history: viewHistory, profile: viewProfile, mockIntro: viewMockIntro, papers: viewPapers }[view] || viewHome)(arg);
     window.scrollTo(0, 0);
     app.focus({ preventScroll: true });
   }
@@ -183,17 +183,17 @@
         </div>
       </div>
       ${cur ? `<div class="card" style="border-color:var(--accent)">
-        <h3>Unfinished ${cur.mode === 'mock' ? 'mock test' : 'drill'}</h3>
+        <h3>Unfinished ${cur.mode === 'mock' ? esc(mockName(cur)) : 'drill'}</h3>
         <p class="muted small">${cur.answers.filter(a => a !== null).length} of ${cur.qs.length} answered${cur.mode === 'mock' ? ` · ${fmtTime(remaining(cur))} left` : ''}</p>
         <div class="row"><button class="btn primary" id="resume">Resume</button><button class="btn" id="discard">Discard</button></div>
       </div>` : ''}
-      <button class="action" id="mock"><span class="ic">&#9201;</span><span><span class="t">Full mock test</span><span class="d">${EXAM.questions} questions · ${EXAM.minutes / 60} hours · −${EXAM.negative} per wrong answer · pass mark ${EXAM.pass}</span></span></button>
+      <button class="action" id="mock"><span class="ic">&#9201;</span><span><span class="t">Mock papers</span><span class="d">${PAPERS.length} full papers · ${PAPERS.filter((_, i) => paperStats(p, i).runs).length} of ${PAPERS.length} done · ${EXAM.questions} questions, ${EXAM.minutes / 60} hours each</span></span></button>
       <button class="action" id="drill"><span class="ic">&#9776;</span><span><span class="t">Topic drill</span><span class="d">${DRILL_SIZE} questions on one topic, answer shown after each question</span></span></button>
       <button class="action" id="mistakes"><span class="ic">&#8635;</span><span><span class="t">Practise my mistakes</span><span class="d">${countMistakes(p)} questions you last answered wrong</span></span></button>
       ${weak ? `<button class="action" id="weak"><span class="ic">&#9888;</span><span><span class="t">Drill my weakest topic</span><span class="d">${esc(AREAS[weak.i])} · ${Math.round(weak.acc * 100)}% correct so far</span></span></button>` : ''}
       <button class="action" id="hist"><span class="ic">&#128200;</span><span><span class="t">History and progress</span><span class="d">Past scores and accuracy by topic</span></span></button>
       <p class="muted small center">Every answer cites the Code section or Rule number so you can check it in the source.</p>`;
-    $('#mock').onclick = () => go('mockIntro');
+    $('#mock').onclick = () => go('papers');
     $('#drill').onclick = () => go('topics');
     $('#mistakes').onclick = () => { const n = countMistakes(p); if (!n) return toast('No mistakes saved yet. Take a drill or mock first.'); cur ? confirmReplace(startMistakes) : startMistakes(); };
     $('#hist').onclick = () => go('history');
@@ -205,16 +205,53 @@
       $('#no').onclick = close; $('#yes').onclick = () => { close(); fn(); };
     });
   }
+  const mockName = h => h.paper != null ? `Mock ${h.paper + 1}` : 'Mixed mock';
+  function paperStats(p, i) {
+    const runs = p.history.filter(h => h.mode === 'mock' && h.paper === i);
+    return { runs: runs.length, best: runs.length ? Math.max(...runs.map(h => h.net)) : null, last: runs[0] || null };
+  }
   const countMistakes = p => Object.values(p.stats).filter(v => v.last === 0).length;
 
 
-  // ---------- Mock instructions (nothing starts until the learner taps Start) ----------
-  function viewMockIntro() {
+  // ---------- Mock papers: fixed numbered papers, no question repeated across papers ----------
+  function viewPapers() {
     const p = me(), cur = p.current;
-    setTop({ back: true, title: 'Full mock test' });
+    setTop({ back: true, title: 'Mock papers' });
+    const st = PAPERS.map((_, i) => paperStats(p, i));
+    const done = st.filter(s => s.runs).length, passed = st.filter(s => s.best !== null && s.best >= EXAM.pass).length;
     app.innerHTML = `
       <div class="card">
-        <h1>Before you start</h1>
+        <h2>${PAPERS.length} full mock papers</h2>
+        <p class="muted small">Each paper has ${EXAM.questions} different questions, so together they cover ${PAPERS.length * EXAM.questions} questions of the bank with no repeats. Every paper has a similar spread of topics.</p>
+        <div class="bar"><i style="width:${Math.round(done / PAPERS.length * 100)}%"></i></div>
+        <p class="small" style="margin:.4rem 0 0">${done} of ${PAPERS.length} attempted · ${passed} passed</p>
+      </div>
+      ${PAPERS.map((_, i) => {
+        const s = st[i], inProg = cur && cur.mode === 'mock' && cur.paper === i;
+        const tag = inProg ? '<span class="tag warn">In progress</span>'
+          : s.best === null ? '<span class="tag">Not started</span>'
+          : s.best >= EXAM.pass ? '<span class="tag ok">Passed</span>' : '<span class="tag bad">Not yet passed</span>';
+        return `<button class="topic" data-p="${i}"><span style="flex:1;min-width:0"><b>Mock ${i + 1}</b>
+          <div class="meta">${s.runs ? `Best ${r2(s.best)} / ${EXAM.questions} · ${s.runs} attempt${s.runs > 1 ? 's' : ''}` : `${EXAM.questions} questions · ${EXAM.minutes / 60} hours`}</div></span>${tag}</button>`;
+      }).join('')}
+      <button class="topic" data-p="r"><span style="flex:1;min-width:0"><b>Mixed mock</b>
+        <div class="meta">${EXAM.questions} questions picked at random, favouring ones you haven't seen</div></span><span class="tag">Random</span></button>`;
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+      const k = b.dataset.p === 'r' ? null : +b.dataset.p;
+      if (cur && cur.mode === 'mock' && (cur.paper ?? null) === k) return go('test');
+      go('mockIntro', k);
+    });
+  }
+
+  // ---------- Mock instructions (nothing starts until the learner taps Start) ----------
+  function viewMockIntro(paper = null) {
+    const p = me(), cur = p.current;
+    const name = mockName({ paper }), s = paper === null ? null : paperStats(p, paper);
+    setTop({ back: true, title: name });
+    app.innerHTML = `
+      <div class="card">
+        <h1>${esc(name)}: before you start</h1>
+        ${s && s.runs ? `<p class="small">You have taken this paper ${s.runs} time${s.runs > 1 ? 's' : ''}. Best score: <b>${r2(s.best)}</b>. Options are shuffled on each attempt.</p>` : ''}
         <p class="muted">This mock follows the pattern of the DGMS Manager's Certificate exam (${esc(certLabel(p))}).</p>
         <div class="stat-grid">
           <div class="stat"><b>${EXAM.questions}</b><span class="small">questions</span></div>
@@ -234,13 +271,13 @@
           <li><b>Save and exit</b> (in the question grid) pauses the timer so you can resume later.</li>
         </ul>
       </div>
-      ${cur ? `<p class="small" style="color:var(--warn)">Starting a new mock will discard your unfinished ${cur.mode === 'mock' ? 'mock test' : 'drill'}.</p>` : ''}
+      ${cur ? `<p class="small" style="color:var(--warn)">Starting this paper will discard your unfinished ${cur.mode === 'mock' ? esc(mockName(cur)) : 'drill'}.</p>` : ''}
       <div class="row">
         <button class="btn" id="cancel">Not now</button>
         <button class="btn primary" id="begin">Start test</button>
       </div>`;
-    $('#cancel').onclick = () => go('home');
-    $('#begin').onclick = () => cur ? confirmReplace(startMock) : startMock();
+    $('#cancel').onclick = () => go('papers');
+    $('#begin').onclick = () => cur ? confirmReplace(() => startMock(paper)) : startMock(paper);
   }
 
   // ---------- Topic picker ----------
@@ -283,8 +320,13 @@
       answers: qs.map(() => null), marked: qs.map(() => false), idx: 0, ...extra
     };
   }
-  function startMock() {
+  function startMock(paper = null) {
     const p = me();
+    if (paper !== null && PAPERS[paper]) {
+      const qs = PAPERS[paper].map(id => BYID[id]).filter(Boolean);
+      p.current = makeAttempt('mock', qs, { limit: EXAM.minutes * 60, paper });
+      store.save(); return go('test');
+    }
     // Keep every topic represented: take a proportional share from each area, then fill the rest by weight.
     const byArea = AREAS.map(() => []); BANK.questions.forEach(q => byArea[q.a].push(q));
     const total = BANK.questions.length; let picked = [];
@@ -443,7 +485,7 @@
     });
     const net = r2(right * EXAM.mark - wrong * EXAM.negative);
     return {
-      id: c.id, mode: c.mode, area: c.area, date: Date.now(), time: Math.round(c.elapsed),
+      id: c.id, mode: c.mode, area: c.area, paper: c.paper ?? null, date: Date.now(), time: Math.round(c.elapsed),
       total: c.qs.length, right, wrong, skipped, net,
       passed: c.mode === 'mock' ? net >= EXAM.pass : null, topic, items
     };
@@ -459,7 +501,7 @@
     const attempted = r.right + r.wrong;
     app.innerHTML = `
       <div class="card center">
-        <div class="muted small">${isMock ? 'Full mock test' : (r.area >= 0 ? esc(AREAS[r.area]) : 'My mistakes')} · ${fmtDate(r.date)}</div>
+        <div class="muted small">${isMock ? esc(mockName(r)) : (r.area >= 0 ? esc(AREAS[r.area]) : 'My mistakes')} · ${fmtDate(r.date)}</div>
         <div class="score-big" style="margin-top:.5rem">${r2(r.net)}<span class="muted" style="font-size:1.1rem"> / ${r.total}</span></div>
         <div class="muted small">net marks after negative marking</div>
         ${isMock ? `<div class="verdict ${r.passed ? 'pass' : 'fail'}">${r.passed ? 'PASS' : 'NOT YET'} · pass mark ${EXAM.pass}</div>` : ''}
@@ -532,7 +574,7 @@
       </div>
       <div class="card"><h3>All attempts</h3>
         ${p.history.length ? `<table class="hist"><thead><tr><th>Date</th><th>Test</th><th class="num">Score</th></tr></thead><tbody>
-          ${p.history.map(h => `<tr data-id="${h.id}" style="cursor:pointer"><td>${fmtDate(h.date)}</td><td>${h.mode === 'mock' ? 'Mock' : (h.area >= 0 ? esc(AREAS[h.area]) : 'Mistakes')}</td>
+          ${p.history.map(h => `<tr data-id="${h.id}" style="cursor:pointer"><td>${fmtDate(h.date)}</td><td>${h.mode === 'mock' ? esc(mockName(h)) : (h.area >= 0 ? esc(AREAS[h.area]) : 'Mistakes')}</td>
             <td class="num">${r2(h.net)}/${h.total} ${h.mode === 'mock' ? (h.passed ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Fail</span>') : ''}</td></tr>`).join('')}
         </tbody></table>` : '<p class="muted">No attempts yet.</p>'}
       </div>`;
@@ -542,7 +584,7 @@
   // ---------- Boot ----------
   applyTheme();
   fetch('questions.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(data => {
-    BANK = data; AREAS = data.areas; EXAM = data.exam;
+    BANK = data; AREAS = data.areas; EXAM = data.exam; PAPERS = data.papers || [];
     data.questions.forEach(q => (BYID[q.id] = q));
     go(me() ? 'home' : 'setup');
   }).catch(() => {
