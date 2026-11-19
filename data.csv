@@ -1,1 +1,3 @@
 ts,event,device_id,learner_id,app_version,os,browser,device_type,installed,screen,lang,cert_class,mineral,attempts_so_far,days_since_signup,mode,paper,drill_area,questions,right,wrong,skipped,net_score,accuracy_pct,passed,minutes,topic_scores
+2026-11-19T04:43:25.017Z,app_open,974a9452-32ae-456b-9d31-d8576f3b0773,mwlw7u3amtglm,2026-11-18d,Android,Chrome,mobile,browser,384x857,en-IN,First,Coal,1,0,,,,,,,,,,,,
+2026-11-19T04:43:28.719Z,app_open,974a9452-32ae-456b-9d31-d8576f3b0773,mwlw7u3amtglm,2026-11-18d,Android,Chrome,mobile,browser,384x857,en-IN,First,Coal,1,0,,,,,,,,,,,,
