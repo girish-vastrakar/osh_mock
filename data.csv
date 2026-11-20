@@ -3,3 +3,5 @@ ts,event,device_id,learner_id,app_version,os,browser,device_type,installed,scree
 2026-11-19T04:43:28.719Z,app_open,974a9452-32ae-456b-9d31-d8576f3b0773,mwlw7u3amtglm,2026-11-18d,Android,Chrome,mobile,browser,384x857,en-IN,First,Coal,1,0,,,,,,,,,,,,
 2026-11-20T09:00:35.150Z,app_open,afd48cd4-2ab2-4c30-9a52-a0ab062a4a53,mwlr1mfpyuqa4,2026-11-18d,Android,Chrome,mobile,browser,360x780,en-US,First,Metal,4,2,,,,,,,,,,,,
 2026-11-20T09:00:39.465Z,app_open,afd48cd4-2ab2-4c30-9a52-a0ab062a4a53,mwlr1mfpyuqa4,2026-11-18d,Android,Chrome,mobile,browser,360x780,en-US,First,Metal,4,2,,,,,,,,,,,,
+2026-11-20T14:25:51.882Z,app_open,afd48cd4-2ab2-4c30-9a52-a0ab062a4a53,mwlr1mfpyuqa4,2026-11-18d,Android,Chrome,mobile,app,360x780,en-US,First,Metal,4,2,,,,,,,,,,,,
+2026-11-20T14:26:06.128Z,app_open,afd48cd4-2ab2-4c30-9a52-a0ab062a4a53,mwlr1mfpyuqa4,2026-11-18d,Android,Chrome,mobile,app,360x780,en-US,First,Metal,4,2,,,,,,,,,,,,
